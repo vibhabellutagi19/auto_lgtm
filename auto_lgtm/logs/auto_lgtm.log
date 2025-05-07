@@ -1,0 +1,16 @@
+2025-05-06 12:21:28 | ERROR    | common.rich_logger:print_error:70 - [red]Environment variables not loaded or not present in .env file[/red]
+2025-05-06 12:21:28 | ERROR    | common.rich_logger:print_error:70 - [red]Configuration error: env variables are not loaded or not present in the .env file[/red]
+2025-05-06 12:29:03 | DEBUG    | common.rich_logger:print_debug:85 - Creating GitHub service
+2025-05-06 12:29:03 | ERROR    | common.rich_logger:print_exception:100 - [red]Unexpected error: RichLogger.create_progress() takes 1 positional argument but 2 were given[/red]
+Traceback (most recent call last):
+
+  File "/Users/vibhavaribellutagi/Documents/gen-ai/gen_ai_projects/auto-lgtm/auto_lgtm/lgtm.py", line 118, in <module>
+    main()
+    └ <function main at 0x10ec784a0>
+
+> File "/Users/vibhavaribellutagi/Documents/gen-ai/gen_ai_projects/auto-lgtm/auto_lgtm/lgtm.py", line 63, in main
+    with logger.create_progress("Fetching PR diff") as (progress, task):
+         │      └ <function RichLogger.create_progress at 0x10ede56c0>
+         └ <common.rich_logger.RichLogger object at 0x10be13830>
+
+TypeError: RichLogger.create_progress() takes 1 positional argument but 2 were given
