@@ -5,6 +5,6 @@ from loguru import logger
 class GitHubServiceFactory:
     @staticmethod
     def create(token: str, owner: str) -> GitHubService:
-        logger.info(f"Creating GitHubService for owner: {owner}, token present: {token}")
+        logger.info(f"Creating GitHubService for owner: {owner}, token present: {bool(token)}")
         api_client = GitHubApiClient(token, owner)
         return GitHubService(api_client)

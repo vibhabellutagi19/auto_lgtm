@@ -18,7 +18,7 @@ class LLMParameters:
 
 
 class LLMService:
-    def __init__(self, user_query: str, project_id: str):
+    def __init__(self, user_query: str, project_id: str, gemini_api_key: str):
         """
         Initialize LLM service with project ID for Secret Manager access.
         
@@ -27,8 +27,7 @@ class LLMService:
             project_id: Google Cloud project ID for accessing secrets
         """
         self.secret_service = SecretService(project_id)
-        self.api_key = self._get_api_key()
-        logger.info(f"LLMService initialized. API key present: {bool(self.api_key)}, key length: {len(self.api_key) if self.api_key else 0}")
+        self.api_key = gemini_api_key
         self.client = OpenAI(
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
             api_key=self.api_key,
@@ -37,23 +36,6 @@ class LLMService:
         self.system_prompt = None
         self.messages = []
         logger.debug(f"LLMService initialized with user_query: {user_query}")
-
-    def _get_api_key(self) -> str:
-        """
-        Get the Gemini API key from secrets.
-        
-        Returns:
-            The API key as a string
-            
-        Raises:
-            ValueError: If the API key cannot be retrieved
-        """
-        try:
-            key = self.secret_service.get_secret(SECRET_ID,"gemini_api_key")
-            return key
-        except Exception as e:
-            logger.error(f"Error retrieving Gemini API key: {str(e)}")
-            raise ValueError(f"Failed to retrieve Gemini API key: {str(e)}")
 
     def set_system_prompt(self, prompt: str):
         self.system_prompt = prompt

@@ -12,7 +12,6 @@ class GitHubApiClient:
             "Accept": "application/vnd.github.v3+json",
             "X-GitHub-Api-Version": "2022-11-28"
         }
-        logger.info(f"GitHubApiClient initialized for owner: {owner}, token present: {bool(token)}, token length: {len(token) if token else 0}")
 
     @contextmanager
     def with_headers(self, headers: Dict[str, str]):

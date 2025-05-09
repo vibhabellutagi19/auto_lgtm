@@ -4,6 +4,7 @@ from auto_lgtm.models.review_models import ChangeType
 from auto_lgtm.common.github_client import GitHubApiClient
 from requests.exceptions import RequestException
 from loguru import logger
+from typing import Union
 
 class GitHubService:
     def __init__(self, api_client: GitHubApiClient):
@@ -151,6 +152,61 @@ class GitHubService:
                     raise GitHubServiceError(f"Access forbidden. Please check if your token has sufficient permissions and the repository exists.")
             raise GitHubServiceError(f"Failed to fetch PR context: {str(e)}")
 
+    def post_review(self, repo: str, pr_number: int, body: str, comments: list, event: str = "COMMENT"):
+        """
+        Post a review to a pull request.
+        :param repo: Repository name
+        :param pr_number: PR number
+        :param body: General review body
+        :param comments: List of dicts with keys: path, position, body
+        :param event: "COMMENT", "APPROVE", or "REQUEST_CHANGES"
+        """
+        endpoint = f"/repos/{self.api_client.owner}/{repo}/pulls/{pr_number}/reviews"
+        data = {
+            "body": body,
+            "event": event,
+            "comments": comments
+        }
+        with self.api_client.with_headers({"Accept": "application/vnd.github+json"}):
+            response = self.api_client.post(endpoint, data=data)
+        return response
+
+    def get_diff_position(self, repo: str, pr_number: int, file_path: str, line_number: int) -> Union[int, None]:
+        """
+        Map a file and line number to a diff position for GitHub review comments.
+        Returns the diff position (int) or None if not found.
+        """
+        url = f"https://api.github.com/repos/{self.api_client.owner}/{repo}/pulls/{pr_number}/files"
+        headers = self.api_client.headers.copy()
+        headers["Accept"] = "application/vnd.github.v3+json"
+        token = headers.get("Authorization").replace("Bearer ", "")
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        files = response.json()
+        for f in files:
+            if f["filename"] == file_path:
+                patch = f.get("patch")
+                if not patch:
+                    continue
+                position = 0
+                file_line = 0
+                for line in patch.splitlines():
+                    if line.startswith("@@"):
+                        parts = line.split(" ")
+                        new_file_info = parts[2]  # e.g. "+1,10"
+                        start_line = int(new_file_info.split(",")[0][1:])
+                        file_line = start_line - 1
+                    elif line.startswith("+"):
+                        file_line += 1
+                        position += 1
+                        if file_line == line_number:
+                            return position
+                    elif line.startswith("-"):
+                        position += 1
+                    else:
+                        file_line += 1
+                        position += 1
+        return None
 
 class GitHubServiceError(Exception):
     """Custom exception for GitHub service errors"""
