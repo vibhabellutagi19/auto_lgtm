@@ -37,6 +37,7 @@ def review_pr(repo: str, pr_number: int, github_owner: str, project_id: str) -> 
     try:
         secret_service = SecretService(project_id)
         
+        logger.info(f"Retrieving GitHub token from Secret Manager (secret_id: {secret_id})")
         token = secret_service.get_secret(secret_id, "github_token")
         if not token:
             raise ValueError("Failed to retrieve GitHub token from secrets")

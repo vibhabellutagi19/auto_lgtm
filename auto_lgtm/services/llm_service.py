@@ -1,11 +1,13 @@
 import os
 from dataclasses import dataclass, field
+from typing import Any, Dict, Union
 from openai import OpenAI
 import json
 from loguru import logger
 from .secret_service import SecretService
 
 SECRET_ID = os.getenv("SECRET_ID")
+
 @dataclass
 class LLMParameters:
     model: str = "gemini-2.0-flash"
@@ -26,6 +28,7 @@ class LLMService:
         """
         self.secret_service = SecretService(project_id)
         self.api_key = self._get_api_key()
+        logger.info(f"LLMService initialized. API key present: {bool(self.api_key)}, key length: {len(self.api_key) if self.api_key else 0}")
         self.client = OpenAI(
             base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
             api_key=self.api_key,
@@ -33,6 +36,7 @@ class LLMService:
         self.user_query = user_query
         self.system_prompt = None
         self.messages = []
+        logger.debug(f"LLMService initialized with user_query: {user_query}")
 
     def _get_api_key(self) -> str:
         """
@@ -45,7 +49,8 @@ class LLMService:
             ValueError: If the API key cannot be retrieved
         """
         try:
-            return self.secret_service.get_secret(SECRET_ID,"gemini_api_key")
+            key = self.secret_service.get_secret(SECRET_ID,"gemini_api_key")
+            return key
         except Exception as e:
             logger.error(f"Error retrieving Gemini API key: {str(e)}")
             raise ValueError(f"Failed to retrieve Gemini API key: {str(e)}")
@@ -57,7 +62,7 @@ class LLMService:
     def set_messages(self, messages: dict):
         self.messages.append(messages)
 
-    def generate_response(self, is_set_assistant_messages: bool = False):
+    def generate_response(self) -> Union[Any, Dict[str, str]]:
         if not any(msg.get("role") == "user" for msg in self.messages):
             self.set_messages({"role": "user", "content": self.user_query})
 
@@ -73,15 +78,18 @@ class LLMService:
         )
 
         content = response.choices[0].message.content
-        if is_set_assistant_messages:
-            self.set_messages({"role": "assistant", "content": json.dumps(self.response_to_json(content))})
-            parsed_content = self.response_to_json(content)
-            return parsed_content
-        return content
+        parsed_content = self.response_to_json(content)
+        # TODO: Remove this once we have a better way to handle the response
+        for comment in parsed_content:
+            for key, value in comment.items():
+                if key == "comment":
+                    logger.debug(f"LLM review comments: {value}")
+        return parsed_content
 
     def response_to_json(self, content: str):
         try:
             return json.loads(content)
         except json.JSONDecodeError:
+            logger.error("Invalid JSON response from LLM.")
             return {"error": "Invalid JSON response"}
 

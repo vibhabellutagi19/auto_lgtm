@@ -1,9 +1,9 @@
 import requests
-from typing import Any, List, Dict
+from typing import Any, List, Dict, Literal
 from auto_lgtm.models.review_models import ChangeType
 from auto_lgtm.common.github_client import GitHubApiClient
 from requests.exceptions import RequestException
-
+from loguru import logger
 
 class GitHubService:
     def __init__(self, api_client: GitHubApiClient):
@@ -15,20 +15,17 @@ class GitHubService:
 
     def fetch_pr_diff(self, repo: str, pr_number: int) -> List[Dict[str, Any]]:
         endpoint = f"/repos/{self.api_client.owner}/{repo}/pulls/{pr_number}"
-        headers = self.api_client.headers.copy()
-        headers["Accept"] = "application/vnd.github.v3.diff"
         try:
-            response = requests.get(f"{self.api_client.base_url}{endpoint}", headers=headers)
-            response.raise_for_status()
-            diff_content = response.text
-            return self.parse_diff(diff_content)
+            with self.api_client.with_headers({"Accept": "application/vnd.github.v3.diff"}):
+                diff_content = self.api_client.get(endpoint, return_text=True)
+                return self.parse_diff(diff_content)
         except RequestException as e:
-            if response.status_code == 404:
-                raise GitHubServiceError(f"PR not found. Please check if repository '{repo}' and PR number {pr_number} are correct.")
-            elif response.status_code == 403:
-                raise GitHubServiceError(f"Access forbidden. Please check if your token has sufficient permissions and the repository exists.")
-            else:
-                raise GitHubServiceError(f"Failed to fetch PR diff: {str(e)}")
+            if hasattr(e.response, 'status_code'):
+                if e.response.status_code == 404:
+                    raise GitHubServiceError(f"PR not found. Please check if repository '{repo}' and PR number {pr_number} are correct.")
+                elif e.response.status_code == 403:
+                    raise GitHubServiceError(f"Access forbidden. Please check if your token has sufficient permissions and the repository exists.")
+            raise GitHubServiceError(f"Failed to fetch PR diff: {str(e)}")
 
     def parse_diff(self, diff_content: str) -> List[Dict[str, Any]]:
         """Parse the diff content and return a structured format with line numbers.
@@ -46,21 +43,17 @@ class GitHubService:
         
         for line in diff_content.split('\n'):
             if line.startswith('diff --git'):
-                # New file section
                 if current_file is not None:
                     structured_diff.append(current_file)
                 current_file = {
-                    'file': line.split(' ')[2][2:],  # Remove 'a/' prefix
+                    'file': line.split(' ')[2][2:],
                     'chunks': []
                 }
                 current_chunk = None
                 current_line_number = 0
             elif line.startswith('@@'):
-                # New chunk section
                 if current_chunk is not None and current_file is not None:
                     current_file['chunks'].append(current_chunk)
-                # Parse the line numbers from the chunk header
-                # Format: @@ -old_start,old_lines +new_start,new_lines @@
                 numbers = line.split(' ')[1:3]
                 old_start = int(numbers[0].split(',')[0][1:])
                 new_start = int(numbers[1].split(',')[0][1:])
@@ -71,7 +64,6 @@ class GitHubService:
                 }
                 current_line_number = new_start
             elif line.startswith('+') or line.startswith('-'):
-                # Changed line
                 if current_chunk is not None:
                     change_type = 'ADDITION' if line.startswith('+') else 'DELETION'
                     current_chunk['changes'].append({
@@ -102,30 +94,30 @@ class GitHubService:
                 pr_details = self.fetch_pr_context(repo, pr_number)
             commit_id = pr_details["head"]["sha"]
             
-            clean_path = path.replace('b/', '') if path.startswith('b/') else path
+            clean_path: str = path.replace('b/', '') if path.startswith('b/') else path
             
-            side = "RIGHT" if change_type == ChangeType.ADDITION else "LEFT"
+            side: Literal['RIGHT'] | Literal['LEFT'] = "RIGHT" if change_type == ChangeType.ADDITION else "LEFT"
             
-            lines = body.split('\n')
-            end_line = line_number + len(lines) - 1
+            lines: List[str] = body.split('\n')
+            end_line: int = line_number + len(lines) - 1
             
-            data = {
+            data: Dict[str, Any] = {
                 "body": body,
                 "commit_id": commit_id,
                 "path": clean_path,
                 "side": side,
             }
             
-            # For multi-line comments, we need both start_line and line (end line)
             if len(lines) > 1:
                 data["start_line"] = line_number
                 data["start_side"] = side
-                data["line"] = end_line  # line represents the last line
+                data["line"] = end_line
                 data["end_side"] = side
             else:
-                data["line"] = line_number  # For single line comments, just use line
-            
-            response = self.api_client.post(endpoint, data=data)
+                data["line"] = line_number
+            logger.debug(f"Posting review comment: {data}")
+            with self.api_client.with_headers({"Accept": "application/vnd.github+json"}):
+                response = self.api_client.post(endpoint, data=data)
             return response
         except RequestException as e:
             if hasattr(e.response, 'status_code'):
