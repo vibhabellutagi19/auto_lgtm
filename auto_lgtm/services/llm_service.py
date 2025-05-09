@@ -5,6 +5,7 @@ import json
 from loguru import logger
 from .secret_service import SecretService
 
+SECRET_ID = os.getenv("SECRET_ID")
 @dataclass
 class LLMParameters:
     model: str = "gemini-2.0-flash"
@@ -35,7 +36,7 @@ class LLMService:
 
     def _get_api_key(self) -> str:
         """
-        Get the Gemini API key from Secret Manager.
+        Get the Gemini API key from secrets.
         
         Returns:
             The API key as a string
@@ -44,10 +45,7 @@ class LLMService:
             ValueError: If the API key cannot be retrieved
         """
         try:
-            api_key = self.secret_service.get_secret("gemini-api-key")
-            if not api_key:
-                raise ValueError("Failed to retrieve Gemini API key from Secret Manager")
-            return api_key
+            return self.secret_service.get_secret(SECRET_ID,"gemini_api_key")
         except Exception as e:
             logger.error(f"Error retrieving Gemini API key: {str(e)}")
             raise ValueError(f"Failed to retrieve Gemini API key: {str(e)}")

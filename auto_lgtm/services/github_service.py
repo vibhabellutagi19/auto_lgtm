@@ -1,7 +1,7 @@
 import requests
 from typing import Any, List, Dict
-from models.review_models import ChangeType
-from common.github_client import GitHubApiClient
+from auto_lgtm.models.review_models import ChangeType
+from auto_lgtm.common.github_client import GitHubApiClient
 from requests.exceptions import RequestException
 
 

@@ -2,10 +2,10 @@ from typing import List, Dict, Any
 from enum import Enum
 import json
 
-from prompts.pr_review_prompt import PR_REVIEW_PROMPT
-from models.review_models import ReviewResponse, ReviewComment, ChangeType, SeverityLevel
+from auto_lgtm.prompts.pr_review_prompt import PR_REVIEW_PROMPT
+from auto_lgtm.models.review_models import ReviewResponse, ReviewComment, ChangeType, SeverityLevel
 
-from .llm_service import LLMService
+from auto_lgtm.services.llm_service import LLMService
 
 class DiffParser:
     """
