@@ -1,6 +1,6 @@
 from typing import Dict, List, Any
 from auto_lgtm.services.llm_service import LLMService
-from auto_lgtm.factories.github_factory import GitHubServiceFactory
+from auto_lgtm.factories.github_app_factory import GitHubAppFactory
 from auto_lgtm.services.github_service import GitHubService, GitHubServiceError
 from auto_lgtm.services.review_service import ReviewService, DiffParser
 from auto_lgtm.models.review_models import ReviewResponse, ReviewComment, ReviewContext
@@ -16,15 +16,21 @@ def review_pr(repo: str, pr_number: int, github_owner: str, project_id: str) -> 
     try:
         secret_service = SecretService(project_id)
         secret_id = os.getenv("SECRET_ID")
-        logger.info(f"Retrieving GitHub token from Secret Manager (secret_id: {secret_id})")
-        token: str = secret_service.get_secret(secret_id, "github_token")
+        installation_id = os.getenv("GITHUB_INSTALLATION_ID")
+        
+        if not installation_id:
+            raise ValueError("GitHub App installation ID not found in environment variables")
+            
+        logger.info(f"Retrieving GitHub App credentials from Secret Manager (secret_id: {secret_id})")
         gemini_api_key: str = secret_service.get_secret(secret_id, "gemini_api_key")
         
-        if not token or not gemini_api_key:
-            raise ValueError("Failed to retrieve GitHub token or Gemini API key from secrets")
+        if not gemini_api_key:
+            raise ValueError("Failed to retrieve Gemini API key from secrets")
 
         logger.info(f"Processing PR #{pr_number} in repository {repo}")
-        github_service: GitHubService = GitHubServiceFactory.create(token, github_owner)
+        github_app_factory = GitHubAppFactory(project_id, secret_id)
+        github_client = github_app_factory.create_client(github_owner, installation_id)
+        github_service = GitHubService(github_client)
 
         logger.info("Fetching PR diff and context...")
         structured_diff: List[Dict[str, Any]] = github_service.fetch_pr_diff(repo, pr_number)
